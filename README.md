@@ -30,7 +30,7 @@ This plugin helps prevent such penalties by ensuring that only domains resolving
 Build Caddy with the plugin:
 
 ```sh
-xcaddy build --with github.com/cristianfd/dnschecker
+xcaddy build --with github.com/cristianfd/DNSChecker
 ```
 
 ## Usage
