@@ -28,6 +28,7 @@ type OnDemandPermission interface {
 
 type PermissionByDNS struct {
 	TargetIP string `json:"targetip"`
+	Resolver string `json:"resolver,omitempty"`
 
 	logger   *zap.Logger
 	replacer *caddy.Replacer
@@ -46,8 +47,21 @@ func (p *PermissionByDNS) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 	if !d.Next() {
 		return nil
 	}
-	if !d.AllArgs(&p.TargetIP) {
-		return d.ArgErr()
+	for d.NextBlock(0) {
+		switch d.Val() {
+		case "targetip":
+			if !d.NextArg() {
+				return d.ArgErr()
+			}
+			p.TargetIP = d.Val()
+		case "resolver":
+			if !d.NextArg() {
+				return d.ArgErr()
+			}
+			p.Resolver = d.Val()
+		default:
+			return d.Errf("unrecognized subdirective %s", d.Val())
+		}
 	}
 	return nil
 }
@@ -79,9 +93,10 @@ func (p PermissionByDNS) CertificateAllowed(ctx context.Context, name string) er
 	p.logger.Debug("checking permission for certificate",
 		zap.String("domain", name),
 		zap.String("targetIP", p.TargetIP),
+		zap.String("resolver", p.getResolver()),
 	)
 
-	ips, err := lookupHostWithResolver(name, "1.1.1.1")
+	ips, err := lookupHostWithResolver(name, p.getResolver())
 	if err != nil {
 		p.logger.Error("DNS lookup failed",
 			zap.String("domain", name),
@@ -107,6 +122,14 @@ func (p PermissionByDNS) CertificateAllowed(ctx context.Context, name string) er
 	}
 
 	return fmt.Errorf("domain %s does not resolve to allowed IP %s", name, p.TargetIP)
+}
+
+// getResolver returns the configured resolver or the default (1.1.1.1)
+func (p PermissionByDNS) getResolver() string {
+	if p.Resolver != "" {
+		return p.Resolver
+	}
+	return "1.1.1.1"
 }
 
 // ErrPermissionDenied is an error that should be wrapped or returned when the
